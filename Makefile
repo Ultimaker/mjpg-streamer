@@ -15,8 +15,8 @@ DESTDIR = /usr/local
 # set the compiler to use
 CC = gcc
 
-SVNDEV := -D'SVN_REV="$(shell svnversion -c .)"'
-CFLAGS += $(SVNDEV)
+GITDEV := -D'GIT_REV="$(shell git describe --always --long --dirty)"'
+CFLAGS += $(GITDEV)
 
 # general compile flags, enable all warnings to make compile more verbose
 CFLAGS += -DLINUX -D_GNU_SOURCE -Wall 
@@ -154,7 +154,7 @@ clean:
 # useful to make a backup "make tgz"
 tgz: clean
 	mkdir -p backups
-	tar czvf ./backups/mjpg_streamer_`date +"%Y_%m_%d_%H.%M.%S"`.tgz --exclude backups --exclude .svn *
+	tar czvf ./backups/mjpg_streamer_`date +"%Y_%m_%d_%H.%M.%S"`.tgz --exclude backups --exclude .git* *
 
 # install MJPG-streamer and example webpages
 install: all

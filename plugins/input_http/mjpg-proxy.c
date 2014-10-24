@@ -133,7 +133,7 @@ fprintf(stderr, " --------------------------------------------------------------
                 " Help for input plugin..: %s\n" \
                 " ---------------------------------------------------------------\n" \
                 " The following parameters can be passed to this plugin:\n\n" \
-                " [-v | --version ]........: current SVN Revision\n" \
+                " [-v | --version ]........: current git Revision\n" \
                 " [-h | --help]............: show this message\n"
                 " [-H | --host]............: select host to data from, localhost is default\n"
                 " [-p | --port]............: port, defaults to 8080\n"

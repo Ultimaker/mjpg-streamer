@@ -83,6 +83,7 @@ struct vdIn {
     struct v4l2_requestbuffers rb;
     void *mem[NB_BUFFER];
     unsigned char *tmpbuffer;
+    int tmpbytesused;
     unsigned char *framebuffer;
     streaming_state streamingState;
     int grabmethod;

@@ -482,7 +482,7 @@ void *cam_thread(void *arg)
             exit(EXIT_FAILURE);
         }
 
-        //DBG("received frame of size: %d from plugin: %d\n", pcontext->videoIn->buf.bytesused, pcontext->id);
+        //DBG("received frame of size: %d from plugin: %d\n", pcontext->videoIn->tmpbytesused, pcontext->id);
 
         /*
          * Workaround for broken, corrupted frames:
@@ -491,7 +491,7 @@ void *cam_thread(void *arg)
          * For example a VGA (640x480) webcam picture is normally >= 8kByte large,
          * corrupted frames are smaller.
          */
-        if(pcontext->videoIn->buf.bytesused < minimum_size) {
+        if(pcontext->videoIn->tmpbytesused < minimum_size) {
             DBG("dropping too small frame, assuming it as broken\n");
             continue;
         }
@@ -529,7 +529,7 @@ void *cam_thread(void *arg)
         } else {
         #endif
             //DBG("copying frame from input: %d\n", (int)pcontext->id);
-            pglobal->in[pcontext->id].size = memcpy_picture(pglobal->in[pcontext->id].buf, pcontext->videoIn->tmpbuffer, pcontext->videoIn->buf.bytesused);
+            pglobal->in[pcontext->id].size = memcpy_picture(pglobal->in[pcontext->id].buf, pcontext->videoIn->tmpbuffer, pcontext->videoIn->tmpbytesused);
         #ifndef NO_LIBJPEG
         }
         #endif

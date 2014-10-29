@@ -500,8 +500,8 @@ void *cam_thread(void *arg)
         if (pcontext->videoIn->soft_framedrop == 1) {
             unsigned long last = pglobal->in[pcontext->id].timestamp.tv_sec * 1000 +
                                 (pglobal->in[pcontext->id].timestamp.tv_usec/1000); // convert to ms
-            unsigned long current = pcontext->videoIn->buf.timestamp.tv_sec * 1000 +
-                                    pcontext->videoIn->buf.timestamp.tv_usec/1000; // convert to ms
+            unsigned long current = pcontext->videoIn->tmptimestamp.tv_sec * 1000 +
+                                    pcontext->videoIn->tmptimestamp.tv_usec/1000; // convert to ms
 
             // if the requested time did not esplashed skip the frame
             if ((current - last) < pcontext->videoIn->frame_period_time) {
@@ -543,7 +543,7 @@ void *cam_thread(void *arg)
 #endif
 
         /* copy this frame's timestamp to user space */
-        pglobal->in[pcontext->id].timestamp = pcontext->videoIn->buf.timestamp;
+        pglobal->in[pcontext->id].timestamp = pcontext->videoIn->tmptimestamp;
 
         /* signal fresh_frame */
         pthread_cond_broadcast(&pglobal->in[pcontext->id].db_update);

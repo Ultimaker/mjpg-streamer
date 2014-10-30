@@ -719,16 +719,14 @@ int v4l2SetControl(struct vdIn *vd, int control_id, int value, int plugin_number
 int v4l2UpControl(struct vdIn *vd, int control) {
   struct v4l2_control control_s;
   struct v4l2_queryctrl queryctrl;
-  int min, max, current, step, val_def;
+  int max, current, step;
   int err;
 
   if (isv4l2Control(vd, control, &queryctrl) < 0)
     return -1;
 
-  min = queryctrl.minimum;
   max = queryctrl.maximum;
   step = queryctrl.step;
-  val_def = queryctrl.default_value;
 
   if ( (current = v4l2GetControl(vd, control)) == -1 )
     return -1;
@@ -754,16 +752,14 @@ int v4l2UpControl(struct vdIn *vd, int control) {
 int v4l2DownControl(struct vdIn *vd, int control) {
   struct v4l2_control control_s;
   struct v4l2_queryctrl queryctrl;
-  int min, max, current, step, val_def;
+  int min,current, step;
   int err;
 
   if (isv4l2Control(vd, control, &queryctrl) < 0)
     return -1;
 
   min = queryctrl.minimum;
-  max = queryctrl.maximum;
   step = queryctrl.step;
-  val_def = queryctrl.default_value;
   if ( (current = v4l2GetControl(vd, control)) == -1 )
     return -1;
 

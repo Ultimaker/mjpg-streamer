@@ -23,4 +23,4 @@ clean:
 	rm -f *.a *.o core *~ *.so *.lo
 
 output_viewer.so: $(OTHER_HEADERS) output_viewer.c
-	$(CC) $(CFLAGS) $(LFLAGS) -o $@ output_viewer.c
+	$(CC) -o $@ output_viewer.c $(CFLAGS) $(LFLAGS)

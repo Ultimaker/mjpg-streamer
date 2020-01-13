@@ -524,9 +524,9 @@ int uvcGrab(struct vdIn *vd)
     case V4L2_PIX_FMT_MJPEG:
         if(buf.bytesused <= HEADERFRAME1) {
             /* Prevent crash
-                                                        * on empty image */
+            * on empty image */
             fprintf(stderr, "Ignoring empty buffer ...\n");
-            return 0;
+            break;
         }
 
         /* memcpy(vd->tmpbuffer, vd->mem[buf.index], buf.bytesused);

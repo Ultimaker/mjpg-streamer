@@ -25,6 +25,8 @@ while [[ $# -gt 0 ]]; do
 done
 
 SSH_OPTS="-q -o StrictHostKeyChecking=no"
+# SSH_OPTS is intentionally unquoted when passed to ssh/scp so it is treated
+# as separate flags, not a single argument.  shellcheck disable=SC2086 below.
 
 # ── build ─────────────────────────────────────────────────────────────────────
 echo "==> Building mjpg-streamer .deb for arm64 via Docker..."
@@ -33,7 +35,7 @@ docker build \
     --output "type=local,dest=${DIST_DIR}" \
     "$SCRIPT_DIR"
 
-BUILT_DEB="$(ls "${DIST_DIR}"/mjpg-streamer_*.deb 2>/dev/null | head -1)"
+BUILT_DEB="$(find "${DIST_DIR}" -maxdepth 1 -name 'mjpg-streamer_*.deb' | head -1)"
 
 if [[ -z "$BUILT_DEB" ]]; then
     echo "ERROR: Build succeeded but no .deb found in ${DIST_DIR}." >&2
@@ -59,6 +61,7 @@ echo ""
 echo "==> Deploying to root@${DEPLOY_HOST}..."
 
 # Verify connectivity and architecture
+# shellcheck disable=SC2086  # SSH_OPTS must word-split into separate flags
 sshpass -p "$PRINTER_PASSWORD" ssh $SSH_OPTS root@"$DEPLOY_HOST" "uname -m" \
     | grep -q aarch64 || { echo "ERROR: target is not aarch64"; exit 1; }
 
@@ -69,6 +72,7 @@ sshpass -p "$PRINTER_PASSWORD" scp -q -o StrictHostKeyChecking=no \
 
 # Install with dpkg; postinst will restart mjpg-streamer@0.service automatically
 echo "==> Installing ${DEB_BASENAME} on printer..."
+# shellcheck disable=SC2086  # SSH_OPTS must word-split into separate flags
 sshpass -p "$PRINTER_PASSWORD" ssh $SSH_OPTS root@"$DEPLOY_HOST" \
     "dpkg -i /tmp/${DEB_BASENAME} && rm /tmp/${DEB_BASENAME}"
 

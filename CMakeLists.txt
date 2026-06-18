@@ -26,6 +26,7 @@ set_target_properties(input_uvc PROPERTIES PREFIX "")
 
 add_library(output_http SHARED plugins/output_http/output_http.c plugins/output_http/httpd.c)
 set_target_properties(output_http PROPERTIES PREFIX "")
+target_compile_definitions(output_http PRIVATE MANAGMENT)
 
 # Optional: WebP snapshot support (/?action=webpsnapshot)
 # Requires libwebp-dev and libjpeg-dev.  Silently disabled if either is absent.

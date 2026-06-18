@@ -47,6 +47,12 @@
 
 #include "httpd.h"
 
+#ifdef HAVE_WEBP
+#include <jpeglib.h>
+#include <setjmp.h>
+#include <webp/encode.h>
+#endif
+
 /*
  * mapping between command string and command type
  * it is used to find the command for a certain string
@@ -430,6 +436,142 @@ void update_client_timestamp(client_info *client)
     pthread_mutex_unlock(&client_infos.mutex);
 }
 #endif
+
+#ifdef HAVE_WEBP
+/******************************************************************************
+Description.: libjpeg error handler that uses setjmp instead of exit() so we
+              can recover from a corrupt JPEG frame without killing the process.
+******************************************************************************/
+struct webp_jpeg_error_mgr {
+    struct jpeg_error_mgr pub;
+    jmp_buf setjmp_buffer;
+};
+
+static void webp_jpeg_error_exit(j_common_ptr cinfo)
+{
+    struct webp_jpeg_error_mgr *myerr = (struct webp_jpeg_error_mgr *)cinfo->err;
+    longjmp(myerr->setjmp_buffer, 1);
+}
+
+/******************************************************************************
+Description.: Decode a JPEG buffer to raw RGB and re-encode as WebP.
+Input Value.: jpeg_data / jpeg_size - the source JPEG frame
+              webp_size             - output: byte length of returned buffer
+Return Value: heap-allocated WebP buffer (caller must WebPFree()), or NULL on
+              error.  webp_size is 0 on error.
+******************************************************************************/
+static uint8_t *jpeg_to_webp(const unsigned char *jpeg_data, size_t jpeg_size,
+                              size_t *webp_size)
+{
+    struct jpeg_decompress_struct cinfo;
+    struct webp_jpeg_error_mgr    jerr;
+    unsigned char *rgb        = NULL;
+    uint8_t       *webp_out   = NULL;
+    int            width, height, stride;
+    JSAMPROW       row[1];
+
+    *webp_size = 0;
+
+    cinfo.err              = jpeg_std_error(&jerr.pub);
+    jerr.pub.error_exit    = webp_jpeg_error_exit;
+
+    if(setjmp(jerr.setjmp_buffer)) {
+        /* libjpeg called our error handler – clean up and bail */
+        jpeg_destroy_decompress(&cinfo);
+        free(rgb);
+        return NULL;
+    }
+
+    jpeg_create_decompress(&cinfo);
+    jpeg_mem_src(&cinfo, jpeg_data, jpeg_size);
+    jpeg_read_header(&cinfo, TRUE);
+    cinfo.out_color_space = JCS_RGB;
+    jpeg_start_decompress(&cinfo);
+
+    width  = (int)cinfo.output_width;
+    height = (int)cinfo.output_height;
+    stride = width * 3;
+
+    if((rgb = malloc((size_t)(stride * height))) == NULL) {
+        jpeg_destroy_decompress(&cinfo);
+        return NULL;
+    }
+
+    while((int)cinfo.output_scanline < height) {
+        row[0] = rgb + cinfo.output_scanline * stride;
+        jpeg_read_scanlines(&cinfo, row, 1);
+    }
+
+    jpeg_finish_decompress(&cinfo);
+    jpeg_destroy_decompress(&cinfo);
+
+    *webp_size = WebPEncodeRGB(rgb, width, height, stride, 80.0f, &webp_out);
+    free(rgb);
+
+    if(*webp_size == 0) {
+        WebPFree(webp_out);
+        return NULL;
+    }
+
+    return webp_out;
+}
+
+/******************************************************************************
+Description.: Send a complete HTTP response with a single WebP frame converted
+              from the current JPEG snapshot.
+Input Value.: fildescriptor fd to send the answer to
+Return Value: -
+******************************************************************************/
+void send_webp_snapshot(cfd *context_fd, int input_number)
+{
+    unsigned char *frame     = NULL;
+    int            frame_size = 0;
+    char           buffer[BUFFER_SIZE] = {0};
+    struct timeval timestamp;
+    uint8_t       *webp_data = NULL;
+    size_t         webp_size = 0;
+
+    /* wait for a fresh frame */
+    pthread_mutex_lock(&pglobal->in[input_number].db);
+    pthread_cond_wait(&pglobal->in[input_number].db_update, &pglobal->in[input_number].db);
+
+    frame_size = pglobal->in[input_number].size;
+    timestamp  = pglobal->in[input_number].timestamp;
+
+    if((frame = malloc(frame_size)) == NULL) {
+        pthread_mutex_unlock(&pglobal->in[input_number].db);
+        send_error(context_fd->fd, 500, "not enough memory");
+        return;
+    }
+
+    memcpy(frame, pglobal->in[input_number].buf, frame_size);
+    DBG("got frame for WebP conversion (size: %d kB)\n", frame_size / 1024);
+
+    pthread_mutex_unlock(&pglobal->in[input_number].db);
+
+    webp_data = jpeg_to_webp(frame, (size_t)frame_size, &webp_size);
+    free(frame);
+
+    if(!webp_data) {
+        send_error(context_fd->fd, 500, "WebP conversion failed");
+        return;
+    }
+
+    sprintf(buffer, "HTTP/1.0 200 OK\r\n" \
+            STD_HEADER \
+            "Content-type: image/webp\r\n" \
+            "X-Timestamp: %d.%06d\r\n" \
+            "\r\n", (int)timestamp.tv_sec, (int)timestamp.tv_usec);
+
+    if(write(context_fd->fd, buffer, strlen(buffer)) < 0 ||
+       write(context_fd->fd, webp_data, webp_size) < 0) {
+        WebPFree(webp_data);
+        return;
+    }
+
+    WebPFree(webp_data);
+}
+#endif /* HAVE_WEBP */
 
 /******************************************************************************
 Description.: Send a complete HTTP response and a single JPG-frame.
@@ -1232,6 +1374,11 @@ void *client_thread(void *arg)
         }
         #endif
 	#endif
+    #ifdef HAVE_WEBP
+    } else if(strstr(buffer, "GET /?action=webpsnapshot") != NULL) {
+        req.type = A_WEBP_SNAPSHOT;
+        query_suffixed = 255;
+    #endif
     } else if(strstr(buffer, "GET /?action=stream") != NULL) {
         req.type = A_STREAM;
         query_suffixed = 255;
@@ -1485,6 +1632,12 @@ void *client_thread(void *arg)
         DBG("Request for snapshot from input: %d\n", input_number);
         send_snapshot(&lcfd, input_number);
         break;
+    #ifdef HAVE_WEBP
+    case A_WEBP_SNAPSHOT:
+        DBG("Request for WebP snapshot from input: %d\n", input_number);
+        send_webp_snapshot(&lcfd, input_number);
+        break;
+    #endif
     case A_STREAM:
         DBG("Request for stream from input: %d\n", input_number);
         send_stream(&lcfd, input_number);

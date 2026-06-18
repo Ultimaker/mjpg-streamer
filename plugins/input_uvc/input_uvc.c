@@ -44,6 +44,9 @@
 #include "../../utils.h"
 #include "v4l2uvc.h" // this header will includes the ../../mjpg_streamer.h
 
+/* Single definition of the global camera context array (declared extern in v4l2uvc.h). */
+context cams[MAX_INPUT_PLUGINS];
+
 #ifndef NO_LIBJPEG
     #include "jpeg_utils.h"
     #include "huffman.h"

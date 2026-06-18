@@ -34,3 +34,8 @@ Session.vim
 
 # mjpg-streamer specifics
 mjpg_streamer
+
+# Build artifacts
+_build/
+dist/
+*.deb

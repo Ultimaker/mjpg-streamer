@@ -4,42 +4,12 @@
 
 set -eu
 
-LOCAL_REGISTRY_IMAGE="mjpg-streamer"
-
-SRC_DIR="$(pwd)"
-DOCKER_WORK_DIR="/build"
-BUILD_DIR_TEMPLATE="_build"
-BUILD_DIR="${BUILD_DIR_TEMPLATE}"
-
-update_docker_image()
-{
-    echo "Building local Docker build environment."
-    docker build ./docker_env -t "${LOCAL_REGISTRY_IMAGE}"
-}
-
-run_in_docker()
-{
-    docker run \
-        --privileged \
-        --rm \
-        -it \
-        -u "$(id -u)" \
-        -e "BUILD_DIR=${DOCKER_WORK_DIR}/${BUILD_DIR}" \
-        -e "MAKEFLAGS=-j$(($(getconf _NPROCESSORS_ONLN) - 1))" \
-        -v "${SRC_DIR}:${DOCKER_WORK_DIR}" \
-        -w "${DOCKER_WORK_DIR}" \
-        "${LOCAL_REGISTRY_IMAGE}" \
-        "${@}"
-}
-
-run_build()
-{
-    run_in_docker "./build.sh" "${@}"
-}
+SRC_DIR="$(cd "$(dirname "${0}")" && pwd)"
+DIST_DIR="${SRC_DIR}/dist"
 
 deliver_pkg()
 {
-    cp "${BUILD_DIR}/"*".deb" "./"
+    cp "${DIST_DIR}/"*".deb" "${SRC_DIR}/"
 }
 
 run_tests()
@@ -50,17 +20,14 @@ run_tests()
 usage()
 {
     echo "Usage: ${0} [OPTIONS]"
-    echo "  -c   Clean the workspace"
+    echo "  -c   Clean the build output directory"
     echo "  -h   Print usage"
-    echo
-    echo "Other options will be passed on to build.sh"
-    echo "Run './build.sh -h' for more information."
 }
 
-while getopts ":cChlt" options; do
+while getopts ":ch" options; do
     case "${options}" in
     c)
-        run_build "${@}"
+        rm -rf "${DIST_DIR}" "${SRC_DIR}/"*.deb
         exit 0
         ;;
     h)
@@ -79,14 +46,16 @@ while getopts ":cChlt" options; do
 done
 shift "$((OPTIND - 1))"
 
-if ! command -V docker; then
+if ! command -v docker > /dev/null 2>&1; then
     echo "Docker not found, docker-less builds are not supported."
     exit 1
 fi
 
-update_docker_image
-
-run_build "${@}"
+echo "Building mjpg-streamer .deb for arm64 via Docker..."
+docker build \
+    --target export \
+    --output "type=local,dest=${DIST_DIR}" \
+    "${SRC_DIR}"
 
 deliver_pkg
 

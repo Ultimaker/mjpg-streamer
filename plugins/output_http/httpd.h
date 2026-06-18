@@ -77,7 +77,8 @@ static const struct {
     { ".swf",  "application/x-shockwave-flash" },
     { ".cab",  "application/x-shockwave-flash" },
     { ".jar",  "application/java-archive" },
-    { ".json", "application/json" }
+    { ".json", "application/json" },
+    { ".webp", "image/webp" }
 };
 
 /* the webserver determines between these values for an answer */
@@ -85,6 +86,7 @@ typedef enum {
     A_UNKNOWN,
     A_SNAPSHOT,
     A_SNAPSHOT_WXP,
+    A_WEBP_SNAPSHOT,
     A_STREAM,
     A_STREAM_WXP,
     A_COMMAND_NG,

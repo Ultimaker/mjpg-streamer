@@ -8,8 +8,6 @@ SRC_DIR="$(pwd)"
 BUILD_DIR_TEMPLATE="_build"
 BUILD_DIR="${BUILD_DIR:-${SRC_DIR}/${BUILD_DIR_TEMPLATE}}"
 
-DEBIAN_DIR="${BUILD_DIR}/debian"
-
 
 build()
 {

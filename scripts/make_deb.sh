@@ -4,7 +4,7 @@
 git pull
 
 # find out the current revision
-GITVERSION="$(export LANG=C && export LC_ALL=C && echo $(git describe --always --dirty)))"
+GITVERSION="$(LANG=C LC_ALL=C git describe --always --dirty)"
 
 # use checkinstall to create the DEB package
 sudo checkinstall -D \

@@ -350,6 +350,8 @@ int unescape(char *string)
 
 #ifdef MANAGMENT
 
+struct client_infos_s client_infos;
+
 /******************************************************************************
 Description.: Adds a new client information struct to the ino list.
 Input Value.: Client IP address as a string
@@ -412,7 +414,7 @@ int check_client_status(client_info *client)
             msec  =(tim.tv_sec - client_infos.infos[i]->last_take_time.tv_sec)*1000;
             msec +=(tim.tv_usec - client_infos.infos[i]->last_take_time.tv_usec)/1000;
             DBG("diff: %ld\n", msec);
-            if ((msec < 1000) && (msec > 0)) { // FIXME make it parameter
+            if ((msec < 3000) && (msec > 0)) { // FIXME make it parameter
                 DBG("CHEATER\n");
                 pthread_mutex_unlock(&client_infos.mutex);
                 return 1;
@@ -548,6 +550,10 @@ void send_webp_snapshot(cfd *context_fd, int input_number)
     DBG("got frame for WebP conversion (size: %d kB)\n", frame_size / 1024);
 
     pthread_mutex_unlock(&pglobal->in[input_number].db);
+
+    #ifdef MANAGMENT
+    update_client_timestamp(context_fd->client);
+    #endif
 
     webp_data = jpeg_to_webp(frame, (size_t)frame_size, &webp_size);
     free(frame);
@@ -1378,6 +1384,14 @@ void *client_thread(void *arg)
     } else if(strstr(buffer, "GET /?action=webpsnapshot") != NULL) {
         req.type = A_WEBP_SNAPSHOT;
         query_suffixed = 255;
+        #ifdef MANAGMENT
+        if (check_client_status(lcfd.client)) {
+            req.type = A_UNKNOWN;
+            lcfd.client->last_take_time.tv_sec += piggy_fine;
+            send_error(lcfd.fd, 403, "frame already sent");
+            query_suffixed = 0;
+        }
+        #endif
     #endif
     } else if(strstr(buffer, "GET /?action=stream") != NULL) {
         req.type = A_STREAM;

@@ -150,11 +150,12 @@ typedef struct _client_info {
     struct timeval last_take_time;
 } client_info;
 
-struct {
+struct client_infos_s {
     client_info **infos;
     unsigned int client_count;
     pthread_mutex_t mutex;
-} client_infos;
+};
+extern struct client_infos_s client_infos;
 
 #endif
 

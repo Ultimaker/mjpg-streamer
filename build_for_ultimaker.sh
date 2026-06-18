@@ -15,11 +15,6 @@ deliver_pkg()
     cp "${DIST_DIR}/"*".deb" "${SRC_DIR}/"
 }
 
-run_tests()
-{
-    echo "There are no tests available for this repository."
-}
-
 # Warm the builder-stage layer cache in the GitHub Container Registry so that
 # subsequent CI builds skip the apt-get install step.
 build_docker_cache()
@@ -49,11 +44,18 @@ build()
     deliver_pkg
 }
 
+# Run shellcheck over every .sh file in the repo.
+shellcheck_scripts()
+{
+    find "${SRC_DIR}" -name "*.sh" -not -path "*/.git/*" -exec shellcheck {} +
+}
+
 usage()
 {
     echo "Usage: ${0} [OPTIONS]"
     echo "  -a build               Cross-compile and produce the arm64 .deb"
     echo "  -a build_docker_cache  Build and push Docker layer cache to GHCR"
+    echo "  -a shellcheck          Run shellcheck on all .sh files"
     echo "  -c                     Clean the build output directory"
     echo "  -h                     Print usage"
 }
@@ -85,10 +87,14 @@ while getopts ":a:ch" options; do
 done
 shift "$((OPTIND - 1))"
 
-if ! command -v docker > /dev/null 2>&1; then
-    echo "Docker not found, docker-less builds are not supported."
-    exit 1
-fi
+case "${ACTION}" in
+    build|build_docker_cache|"")
+        if ! command -v docker > /dev/null 2>&1; then
+            echo "Docker not found, docker-less builds are not supported."
+            exit 1
+        fi
+        ;;
+esac
 
 case "${ACTION}" in
     build)
@@ -96,6 +102,9 @@ case "${ACTION}" in
         ;;
     build_docker_cache)
         build_docker_cache
+        ;;
+    shellcheck)
+        shellcheck_scripts
         ;;
     "")
         # No -a flag: default to build (backward-compatible with old callers)

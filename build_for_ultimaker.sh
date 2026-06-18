@@ -7,6 +7,9 @@ set -eu
 SRC_DIR="$(cd "$(dirname "${0}")" && pwd)"
 DIST_DIR="${SRC_DIR}/dist"
 
+RELEASE_VERSION="${RELEASE_VERSION:-9999.99.99}"
+DOCKER_IMAGE_NAME="ghcr.io/ultimaker/mjpg-streamer"
+
 deliver_pkg()
 {
     cp "${DIST_DIR}/"*".deb" "${SRC_DIR}/"
@@ -17,15 +20,51 @@ run_tests()
     echo "There are no tests available for this repository."
 }
 
+# Warm the builder-stage layer cache in the GitHub Container Registry so that
+# subsequent CI builds skip the apt-get install step.
+build_docker_cache()
+{
+    docker buildx create --name ultimaker --driver=docker-container 2>/dev/null || true
+    docker buildx build \
+        --builder ultimaker \
+        --target builder \
+        --cache-to  "type=registry,ref=${DOCKER_IMAGE_NAME}" \
+        --cache-from "type=registry,ref=${DOCKER_IMAGE_NAME}" \
+        "${SRC_DIR}"
+}
+
+# Cross-compile and package the .deb.  Pulls the builder-stage cache when
+# available so the apt install layer is reused.
+build()
+{
+    docker buildx create --name ultimaker --driver=docker-container 2>/dev/null || true
+    mkdir -p "${DIST_DIR}"
+    docker buildx build \
+        --builder ultimaker \
+        --target export \
+        --output "type=local,dest=${DIST_DIR}" \
+        --cache-from "type=registry,ref=${DOCKER_IMAGE_NAME}" \
+        --build-arg "RELEASE_VERSION=${RELEASE_VERSION}" \
+        "${SRC_DIR}"
+    deliver_pkg
+}
+
 usage()
 {
     echo "Usage: ${0} [OPTIONS]"
-    echo "  -c   Clean the build output directory"
-    echo "  -h   Print usage"
+    echo "  -a build               Cross-compile and produce the arm64 .deb"
+    echo "  -a build_docker_cache  Build and push Docker layer cache to GHCR"
+    echo "  -c                     Clean the build output directory"
+    echo "  -h                     Print usage"
 }
 
-while getopts ":ch" options; do
+ACTION=""
+
+while getopts ":a:ch" options; do
     case "${options}" in
+    a)
+        ACTION="${OPTARG}"
+        ;;
     c)
         rm -rf "${DIST_DIR}" "${SRC_DIR}/"*.deb
         exit 0
@@ -51,12 +90,22 @@ if ! command -v docker > /dev/null 2>&1; then
     exit 1
 fi
 
-echo "Building mjpg-streamer .deb for arm64 via Docker..."
-docker build \
-    --target export \
-    --output "type=local,dest=${DIST_DIR}" \
-    "${SRC_DIR}"
-
-deliver_pkg
+case "${ACTION}" in
+    build)
+        build
+        ;;
+    build_docker_cache)
+        build_docker_cache
+        ;;
+    "")
+        # No -a flag: default to build (backward-compatible with old callers)
+        build
+        ;;
+    *)
+        echo "Unknown action: ${ACTION}"
+        usage
+        exit 1
+        ;;
+esac
 
 exit 0

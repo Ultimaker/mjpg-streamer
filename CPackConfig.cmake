@@ -3,10 +3,11 @@ set(CPACK_PACKAGE_VENDOR "Ultimaker B.V.")
 set(CPACK_PACKAGE_CONTACT "firmware@ultimaker.com")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "MJPG-streamer")
 
-# Bumped above the Cloudsmith-distributed 12.0.0 so apt will upgrade in-place.
-set(CPACK_PACKAGE_VERSION_MAJOR 12)
-set(CPACK_PACKAGE_VERSION_MINOR 0)
-set(CPACK_PACKAGE_VERSION_PATCH 1)
+# Version is normally injected by CI via -DCPACK_PACKAGE_VERSION=X.Y.Z.
+# The sentinel "9999.99.99" marks a local / untagged build.
+if(NOT DEFINED CPACK_PACKAGE_VERSION OR CPACK_PACKAGE_VERSION STREQUAL "")
+    set(CPACK_PACKAGE_VERSION "9999.99.99")
+endif()
 
 set(CPACK_GENERATOR "DEB")
 

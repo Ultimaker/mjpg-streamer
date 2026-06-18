@@ -25,9 +25,14 @@ RUN dpkg --add-architecture arm64 \
 WORKDIR /src
 COPY . .
 
+# RELEASE_VERSION is injected by CI (build_for_ultimaker.sh -a build) and
+# becomes the CPack package version.  Defaults to 9999.99.99 for local builds.
+ARG RELEASE_VERSION=9999.99.99
+
 RUN cmake -B /build \
         -DCMAKE_TOOLCHAIN_FILE=/src/cmake/aarch64-linux-gnu.cmake \
         -DCMAKE_BUILD_TYPE=Release \
+        "-DCPACK_PACKAGE_VERSION=${RELEASE_VERSION}" \
  && cmake --build /build -- -j"$(nproc)" \
  && cd /build && cpack -G DEB \
  && mkdir /dist && cp /build/mjpg-streamer_*.deb /dist/

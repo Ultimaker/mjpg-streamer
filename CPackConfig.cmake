@@ -13,9 +13,13 @@ set(CPACK_GENERATOR "DEB")
 
 # ── Debian-specific ───────────────────────────────────────────────────────────
 
-# New runtime deps introduced by the WebP snapshot feature.  The base binary
-# and input_uvc.so have no additional deps beyond what was in 12.0.0.
-set(CPACK_DEBIAN_PACKAGE_DEPENDS "libc6, libjpeg62-turbo, libwebp7")
+# Runtime dependencies: libjpeg62-turbo and libwebp7 are only required when the
+# WebP snapshot feature is compiled in (WEBP_ENABLED is set by CMakeLists.txt).
+if(WEBP_ENABLED)
+    set(CPACK_DEBIAN_PACKAGE_DEPENDS "libc6, libjpeg62-turbo, libwebp7")
+else()
+    set(CPACK_DEBIAN_PACKAGE_DEPENDS "libc6")
+endif()
 
 set(CPACK_DEBIAN_PACKAGE_SECTION  "devel")
 set(CPACK_DEBIAN_PACKAGE_PRIORITY "optional")

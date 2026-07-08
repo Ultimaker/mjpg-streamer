@@ -17,19 +17,14 @@ SERVERPATH="/path/to/file.jpg"
 
 ################################################################################
 # check if required tool exists
-RES="$(which wput)"
-if [ $? -ne 0 ]; then
+if ! command -v wput > /dev/null 2>&1; then
   echo "please install the tool wput"
   exit 1
 fi
 
 # upload it now
-RES="$(wput --reupload "$1" "ftp://${USERNAME}:${PASSWORD}@${SERVER}${SERVERPATH}")"
-
-# check if it went alright
-if [ $? -ne 0 ]; then
-  echo "wput failed, dumping output..."
-  echo "$RES"
+if ! wput --reupload "$1" "ftp://${USERNAME}:${PASSWORD}@${SERVER}${SERVERPATH}"; then
+  echo "wput failed"
   exit 1
 fi
 

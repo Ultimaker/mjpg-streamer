@@ -73,6 +73,7 @@ check_library_installation()
     done
 }
 
+# shellcheck disable=SC2317  # cleanup() is invoked via 'trap ... EXIT'
 cleanup()
 {
        if [ "$(dirname "${TEST_DIR}")" != "/tmp" ]; then

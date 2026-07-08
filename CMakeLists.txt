@@ -7,6 +7,10 @@ if(SYSROOT)
                 ${SYSROOT}/usr/include/
 		${SYSROOT}/usr/include/arm-linux-gnueabihf/
 	)
+        link_directories(
+                ${SYSROOT}/usr/lib/
+                ${SYSROOT}/usr/lib/arm-linux-gnueabihf/
+        )
 endif()
 
 # Add warnings
@@ -22,6 +26,36 @@ set_target_properties(input_uvc PROPERTIES PREFIX "")
 
 add_library(output_http SHARED plugins/output_http/output_http.c plugins/output_http/httpd.c)
 set_target_properties(output_http PROPERTIES PREFIX "")
+target_compile_definitions(output_http PRIVATE MANAGMENT)
+
+# Optional: WebP snapshot support (/?action=webpsnapshot)
+# Requires libwebp-dev and libjpeg-dev.  Silently disabled if either is absent.
+# Pass -DWITH_WEBP=OFF to cmake to explicitly disable even if the libs are present.
+option(WITH_WEBP "Enable WebP snapshot support" ON)
+find_package(JPEG)
+find_package(PkgConfig)
+if(PkgConfig_FOUND OR PKG_CONFIG_FOUND)
+    pkg_check_modules(WEBP libwebp)
+endif()
+
+if(WITH_WEBP AND JPEG_FOUND AND WEBP_FOUND)
+    message(STATUS "WebP snapshot support enabled")
+    set(WEBP_ENABLED TRUE)
+    target_compile_definitions(output_http PRIVATE HAVE_WEBP)
+    target_include_directories(output_http PRIVATE ${JPEG_INCLUDE_DIR} ${WEBP_INCLUDE_DIRS})
+    target_link_libraries(output_http ${JPEG_LIBRARIES} ${WEBP_LIBRARIES})
+else()
+    set(WEBP_ENABLED FALSE)
+    if(NOT WITH_WEBP)
+        message(STATUS "WebP snapshot support disabled: WITH_WEBP=OFF")
+    endif()
+    if(WITH_WEBP AND NOT JPEG_FOUND)
+        message(STATUS "WebP snapshot support disabled: libjpeg not found")
+    endif()
+    if(WITH_WEBP AND NOT WEBP_FOUND)
+        message(STATUS "WebP snapshot support disabled: libwebp not found")
+    endif()
+endif()
 
 
 include(CPackConfig.cmake)

@@ -33,6 +33,23 @@
  */
 #define MAX_FRAME_SIZE (256*1024)
 #define TEN_K (10*1024)
+#define BYTES_PER_KB 1024
+
+/*
+ * HTTP response status codes used by send_error() and the response handlers.
+ */
+#define HTTP_STATUS_OK                    200
+#define HTTP_STATUS_BAD_REQUEST           400
+#define HTTP_STATUS_UNAUTHORIZED          401
+#define HTTP_STATUS_FORBIDDEN             403
+#define HTTP_STATUS_NOT_FOUND             404
+#define HTTP_STATUS_INTERNAL_SERVER_ERROR 500
+#define HTTP_STATUS_NOT_IMPLEMENTED       501
+
+#ifdef HAVE_WEBP
+/* WebP lossy quality factor (0–100).  80 balances payload size and fidelity. */
+#define WEBP_ENCODE_QUALITY 80.0f
+#endif
 
 /*
  * Standard header to be send along with other header information like mimetype.
@@ -77,7 +94,8 @@ static const struct {
     { ".swf",  "application/x-shockwave-flash" },
     { ".cab",  "application/x-shockwave-flash" },
     { ".jar",  "application/java-archive" },
-    { ".json", "application/json" }
+    { ".json", "application/json" },
+    { ".webp", "image/webp" }
 };
 
 /* the webserver determines between these values for an answer */
@@ -85,6 +103,9 @@ typedef enum {
     A_UNKNOWN,
     A_SNAPSHOT,
     A_SNAPSHOT_WXP,
+#ifdef HAVE_WEBP
+    A_SNAPSHOT_WEBP,
+#endif
     A_STREAM,
     A_STREAM_WXP,
     A_COMMAND_NG,
@@ -148,11 +169,12 @@ typedef struct _client_info {
     struct timeval last_take_time;
 } client_info;
 
-struct {
+struct client_infos_s {
     client_info **infos;
     unsigned int client_count;
     pthread_mutex_t mutex;
-} client_infos;
+};
+extern struct client_infos_s client_infos;
 
 #endif
 

@@ -4,63 +4,71 @@
 
 set -eu
 
-LOCAL_REGISTRY_IMAGE="mjpg-streamer"
+SRC_DIR="$(cd "$(dirname "${0}")" && pwd)"
+DIST_DIR="${SRC_DIR}/dist"
 
-SRC_DIR="$(pwd)"
-DOCKER_WORK_DIR="/build"
-BUILD_DIR_TEMPLATE="_build"
-BUILD_DIR="${BUILD_DIR_TEMPLATE}"
-
-update_docker_image()
-{
-    echo "Building local Docker build environment."
-    docker build ./docker_env -t "${LOCAL_REGISTRY_IMAGE}"
-}
-
-run_in_docker()
-{
-    docker run \
-        --privileged \
-        --rm \
-        -it \
-        -u "$(id -u)" \
-        -e "BUILD_DIR=${DOCKER_WORK_DIR}/${BUILD_DIR}" \
-        -e "MAKEFLAGS=-j$(($(getconf _NPROCESSORS_ONLN) - 1))" \
-        -v "${SRC_DIR}:${DOCKER_WORK_DIR}" \
-        -w "${DOCKER_WORK_DIR}" \
-        "${LOCAL_REGISTRY_IMAGE}" \
-        "${@}"
-}
-
-run_build()
-{
-    run_in_docker "./build.sh" "${@}"
-}
+RELEASE_VERSION="${RELEASE_VERSION:-9999.99.99}"
+DOCKER_IMAGE_NAME="ghcr.io/ultimaker/mjpg-streamer"
 
 deliver_pkg()
 {
-    cp "${BUILD_DIR}/"*".deb" "./"
+    cp "${DIST_DIR}/"*".deb" "${SRC_DIR}/"
 }
 
-run_tests()
+# Warm the builder-stage layer cache in the GitHub Container Registry so that
+# subsequent CI builds skip the apt-get install step.
+build_docker_cache()
 {
-    echo "There are no tests available for this repository."
+    docker buildx create --name ultimaker --driver=docker-container 2>/dev/null || true
+    docker buildx build \
+        --builder ultimaker \
+        --target builder \
+        --cache-to  "type=registry,ref=${DOCKER_IMAGE_NAME}" \
+        --cache-from "type=registry,ref=${DOCKER_IMAGE_NAME}" \
+        "${SRC_DIR}"
+}
+
+# Cross-compile and package the .deb.  Pulls the builder-stage cache when
+# available so the apt install layer is reused.
+build()
+{
+    docker buildx create --name ultimaker --driver=docker-container 2>/dev/null || true
+    mkdir -p "${DIST_DIR}"
+    docker buildx build \
+        --builder ultimaker \
+        --target export \
+        --output "type=local,dest=${DIST_DIR}" \
+        --cache-from "type=registry,ref=${DOCKER_IMAGE_NAME}" \
+        --build-arg "RELEASE_VERSION=${RELEASE_VERSION}" \
+        "${SRC_DIR}"
+    deliver_pkg
+}
+
+# Run shellcheck over every .sh file in the repo.
+shellcheck_scripts()
+{
+    find "${SRC_DIR}" -name "*.sh" -not -path "*/.git/*" -exec shellcheck {} +
 }
 
 usage()
 {
     echo "Usage: ${0} [OPTIONS]"
-    echo "  -c   Clean the workspace"
-    echo "  -h   Print usage"
-    echo
-    echo "Other options will be passed on to build.sh"
-    echo "Run './build.sh -h' for more information."
+    echo "  -a build               Cross-compile and produce the arm64 .deb"
+    echo "  -a build_docker_cache  Build and push Docker layer cache to GHCR"
+    echo "  -a shellcheck          Run shellcheck on all .sh files"
+    echo "  -c                     Clean the build output directory"
+    echo "  -h                     Print usage"
 }
 
-while getopts ":cChlt" options; do
+ACTION=""
+
+while getopts ":a:ch" options; do
     case "${options}" in
+    a)
+        ACTION="${OPTARG}"
+        ;;
     c)
-        run_build "${@}"
+        rm -rf "${DIST_DIR}" "${SRC_DIR}/"*.deb
         exit 0
         ;;
     h)
@@ -79,15 +87,34 @@ while getopts ":cChlt" options; do
 done
 shift "$((OPTIND - 1))"
 
-if ! command -V docker; then
-    echo "Docker not found, docker-less builds are not supported."
-    exit 1
-fi
+case "${ACTION}" in
+    build|build_docker_cache|"")
+        if ! command -v docker > /dev/null 2>&1; then
+            echo "Docker not found, docker-less builds are not supported."
+            exit 1
+        fi
+        ;;
+esac
 
-update_docker_image
-
-run_build "${@}"
-
-deliver_pkg
+case "${ACTION}" in
+    build)
+        build
+        ;;
+    build_docker_cache)
+        build_docker_cache
+        ;;
+    shellcheck)
+        shellcheck_scripts
+        ;;
+    "")
+        # No -a flag: default to build (backward-compatible with old callers)
+        build
+        ;;
+    *)
+        echo "Unknown action: ${ACTION}"
+        usage
+        exit 1
+        ;;
+esac
 
 exit 0
